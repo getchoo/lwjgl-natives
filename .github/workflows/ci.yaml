@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - ".github/workflows/ci.yaml"
+  pull_request:
+    paths:
+      - "**.nix"
+      - "flake.lock"
+      - ".github/workflows/ci.yaml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+
+    strategy:
+      matrix:
+        packages:
+          - lwjgl
+          - lwjgl-aarch64-unknown-linux-gnu
+          - lwjgl-riscv64-unknown-linux-gnu
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+        with:
+          diagnostic-endpoint: ""
+
+      - name: Setup Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Run build
+        run: |
+          nix run \
+            --inputs-from . \
+            nixpkgs#nix-fast-build -- \
+            --no-nom \
+            --skip-cached \
+            --option allow-import-from-derivation false \
+            --flake ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem)"
+
+  build-gate:
+    name: Build gate
+    needs: [build]
+
+    if: ${{ always() }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Exit with error
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
