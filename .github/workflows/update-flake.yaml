@@ -1,0 +1,44 @@
+name: Update flake.lock
+
+on:
+  schedule:
+    # Run every Saturday
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Run update & create PR
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+
+      - name: Run update
+        run: |
+          nix flake update \
+            --commit-lock-file \
+            --commit-lockfile-summary "flake: update inputs"
+
+      - name: Create pull request
+        id: create-pull-request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: update-flake-lock
+          title: "flake: update inputs"
+          token: ${{ github.token }}
+          sign-commits: true
+
+      - name: Run CI
+        uses: ./.github/workflows/ci.yaml
+        with:
+          ref: ${{ steps.create-pull-request.outputs.pull-request-head-sha }}

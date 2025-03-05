@@ -5,27 +5,54 @@
   ant,
   at-spi2-atk,
   buildPackages,
+  cairo,
   dbus,
   fetchAntDeps,
   fetchFromGitHub,
   gdk-pixbuf,
+  glib,
   gtk3,
+  harfbuzz,
   kotlin,
   libGLU,
+  libffi,
   libglvnd,
+  pango,
+  replaceVars,
   xorg,
+
+  version,
+  hash,
+  antHash,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "lwjgl";
-  version = "3.3.4";
+  inherit version;
 
   src = fetchFromGitHub {
     owner = "LWJGL";
     repo = "lwjgl3";
     tag = finalAttrs.version;
-    hash = "sha256-U0pPeTqVoruqqhhMrBrczy0qt83a8atr8DyRcGgX/yI=";
+    inherit hash;
   };
+
+  patches = [
+    (replaceVars ./fix-library-paths.patch (
+      lib.mapAttrs (lib.const lib.getDev) {
+        inherit
+          at-spi2-atk
+          cairo
+          dbus
+          gdk-pixbuf
+          glib
+          gtk3
+          harfbuzz
+          pango
+          ;
+      }
+    ))
+  ];
 
   antJdk = buildPackages.jdk_headless;
   antDeps = fetchAntDeps {
@@ -35,7 +62,7 @@ stdenv.mkDerivation (finalAttrs: {
       src
       antJdk
       ;
-    hash = "sha256-7jVlKBia8dJGuBjNwaljHBrXUep9KjOHHyZESayFnhs=";
+    hash = antHash;
   };
 
   strictDeps = true;
@@ -47,15 +74,23 @@ stdenv.mkDerivation (finalAttrs: {
 
   buildInputs = [
     at-spi2-atk
+    cairo
     dbus
     gdk-pixbuf
+    glib
     gtk3
+    harfbuzz
     libGLU
+    libffi
+    pango
     xorg.libX11
     xorg.libXt
   ];
 
   env = {
+    NIX_CFLAGS = "-funroll-loops -I${lib.getDev gtk3}/include/gtk-3.0";
+    NIX_LDFLAGS = "-lffi";
+
     JAVA_HOME = finalAttrs.antJdk.home;
     JAVA8_HOME = buildPackages.jdk8_headless.home;
 

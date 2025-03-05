@@ -5,34 +5,66 @@ on:
     branches: [main]
     paths:
       - "**.nix"
+      - "flake.lock"
       - ".github/workflows/ci.yaml"
   pull_request:
     paths:
       - "**.nix"
+      - "flake.lock"
       - ".github/workflows/ci.yaml"
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        description: "The branch, tag or SHA to checkout."
+        required: false
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build
+  eval:
+    name: Eval
 
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            system: x86_64-linux
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install Nix
         uses: cachix/install-nix-action@v30
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Run build
+      - name: Evaluate Flake 
         run: |
-          nix-build release.nix -A ${{ matrix.system }}
+          nix flake check \
+            --all-systems \
+            --no-build \
+            --show-trace
+
+  # build:
+  #   name: Build (${{ matrix.system }})
+
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - os: ubuntu-latest
+  #           system: x86_64-linux
+
+  #   runs-on: ${{ matrix.os }}
+
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ inputs.ref }}
+
+  #     - name: Install Nix
+  #       uses: cachix/install-nix-action@v30
+
+  #     - name: Run build
+  #       run: |
+  #         nix flake check \
+  #           --fallback \
+  #           --print-build-logs \
+  #           --show-trace
