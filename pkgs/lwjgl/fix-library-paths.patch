@@ -1,0 +1,36 @@
+diff --git a/config/linux/build.xml b/config/linux/build.xml
+index a1798b6aa..13a75815f 100644
+--- a/config/linux/build.xml
++++ b/config/linux/build.xml
+@@ -282,15 +282,13 @@
+         <build module="nfd" simple="true" linker="g++" if:true="${binding.nfd}">
+             <beforeCompile>
+                 <compile lang="c++">
+-                    <arg value="-I/usr/include/gtk-3.0"/>
+-                    <arg value="-I/usr/include/glib-2.0"/>
+-                    <arg value="-I/usr/include/pango-1.0"/>
+-                    <arg value="-I/usr/include/harfbuzz"/>
+-                    <arg value="-I/usr/include/cairo"/>
+-                    <arg value="-I/usr/include/gdk-pixbuf-2.0"/>
+-                    <arg value="-I/usr/include/atk-1.0"/>
+-                    <arg value="-I/usr/lib64/glib-2.0/include"/>
+-                    <arg value="-I/usr/lib/${linux.triplet}/glib-2.0/include"/>
++                    <arg value="-I@gtk3@"/>
++                    <arg value="-I@glib@"/>
++                    <arg value="-I@pango@"/>
++                    <arg value="-I@harfbuzz@"/>
++                    <arg value="-I@cairo@"/>
++                    <arg value="-I@gdk-pixbuf@"/>
++                    <arg value="-I@at-spi2-atk@"/>
+                     <arg value="-I${src.main.rel}/include"/>
+                     <fileset dir="." includes="${src.main}/nfd_gtk.cpp"/>
+                 </compile>
+@@ -308,7 +306,7 @@
+         <build module="nfd" suffix="_portal" simple="true" linker="g++" if:true="${binding.nfd}">
+             <beforeCompile>
+                 <compile lang="c++">
+-                    <arg line="-I/usr/include/dbus-1.0 -I/usr/lib64/dbus-1.0/include -I/usr/lib/${linux.triplet}/dbus-1.0/include"/>
++                    <arg line="-I@dbus@"/>
+                     <arg value="-I${src.main.rel}/include"/>
+                     <fileset dir="." includes="${src.main}/nfd_portal.cpp"/>
+                 </compile>
