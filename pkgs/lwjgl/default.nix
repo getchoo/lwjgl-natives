@@ -1,7 +1,6 @@
 {
   lib,
   stdenv,
-  breakpointHook,
   ant,
   buildPackages,
   dbus,
@@ -59,7 +58,7 @@ stdenv.mkDerivation (finalAttrs: {
     ant
     kotlin
     pkg-config
-  ] ++ lib.optional (lib.meta.availableOn stdenv.buildPlatform breakpointHook) breakpointHook;
+  ];
 
   buildInputs = [
     dbus
