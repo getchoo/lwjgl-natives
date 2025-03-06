@@ -3,9 +3,7 @@
     # Targets we want to build for
     targets = [
       "x86_64-unknown-linux-gnu"
-      "i686-unknown-linux-gnu"
       "aarch64-unknown-linux-gnu"
-      "armv7l-unknown-linux-gnueabihf"
       "riscv64-unknown-linux-gnu"
     ];
 
