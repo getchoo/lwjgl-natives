@@ -1,4 +1,4 @@
-From cee6a98721d8417802fcd394df0215312be9a7ea Mon Sep 17 00:00:00 2001
+From 44e2d7fdaf32809e9b50d63834fc834dccb7752d Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Wed, 5 Mar 2025 16:20:59 -0500
 Subject: [PATCH 1/5] build: use pkg-config for linux dependencies
