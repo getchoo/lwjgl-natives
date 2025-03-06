@@ -1,4 +1,4 @@
-From f79338f70f72e5d4606b8d99c2f49f85b486be3e Mon Sep 17 00:00:00 2001
+From ff06851e13461c0b9e2f258caf6a2ead16bad700 Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Wed, 5 Mar 2025 16:43:57 -0500
 Subject: [PATCH 3/5] build: allow linking against system libffi

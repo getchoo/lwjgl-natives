@@ -1,4 +1,4 @@
-From 57db58f899e99bc37cbc98b6403ab9aa2f04862f Mon Sep 17 00:00:00 2001
+From 508b031f7edf480f6a8966c8779e395658d206c5 Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Thu, 6 Mar 2025 02:31:35 -0500
 Subject: [PATCH 5/5] build: allow setting pkg-config prefix & suffix

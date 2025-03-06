@@ -31,13 +31,29 @@ stdenv.mkDerivation (finalAttrs: {
     inherit hash;
   };
 
-  patches = [
-    ./0001-build-use-pkg-config-for-linux-dependencies.patch
-    ./0002-build-allow-local-kotlin.patch
-    ./0003-build-allow-linking-against-system-libffi.patch
-    ./0004-build-add-dbus-as-dependency-for-nfd_portal.patch
-    ./0005-build-allow-setting-pkg-config-prefix-suffix.patch
-  ];
+  patches =
+    lib.optionals (lib.versionOlder finalAttrs.version "3.3.4") (
+      [
+        ./patches/3.3.3/0001-build-use-pkg-config-for-linux-dependencies.patch
+        ./patches/3.3.3/0002-build-add-support-for-Linux-RISC-V-64.patch
+        ./patches/3.3.3/0003-build-rpmalloc-get_thread_id-support-on-riscv64.patch
+      ]
+      # Fix building on GCC 14
+      ++ lib.optional (
+        stdenv.cc.isGNU && lib.versionAtLeast stdenv.cc.version "14"
+      ) ./patches/3.3.3/0004-build-core-fix-warnings-errors-on-GCC-14.patch
+    )
+
+    ++ lib.optionals (lib.versionAtLeast finalAttrs.version "3.3.4") [
+      ./patches/3.3.4/0001-build-use-pkg-config-for-linux-dependencies.patch
+    ]
+
+    ++ [
+      ./patches/3.3.4/0002-build-allow-local-kotlin.patch
+      ./patches/3.3.4/0003-build-allow-linking-against-system-libffi.patch
+      ./patches/3.3.4/0004-build-add-dbus-as-dependency-for-nfd_portal.patch
+      ./patches/3.3.4/0005-build-allow-setting-pkg-config-prefix-suffix.patch
+    ];
 
   antJdk = buildPackages.jdk_headless;
   antDeps = fetchAntDeps {
@@ -70,6 +86,11 @@ stdenv.mkDerivation (finalAttrs: {
     xorg.libXt
   ];
 
+  # Fixes building against GCC 14
+  hardeningDisable = lib.optionals (
+    stdenv.hostPlatform.isRiscV64 && (stdenv.cc.isGNU && lib.versionAtLeast stdenv.cc.version "14")
+  ) [ "fortify" ];
+
   antFlags =
     [
       "-Dgcc.libpath.opengl=${libglvnd}/lib"
@@ -85,8 +106,6 @@ stdenv.mkDerivation (finalAttrs: {
     ];
 
   env = {
-    NIX_LDFLAGS = "-lffi";
-
     JAVA_HOME = finalAttrs.antJdk.home;
     JAVA8_HOME = buildPackages.jdk8_headless.home;
 

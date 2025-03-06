@@ -1,0 +1,87 @@
+From 79cfa341e15c6d986614e41750ec769cee19a7ba Mon Sep 17 00:00:00 2001
+From: Seth Flynn <getchoo@tuta.io>
+Date: Wed, 5 Mar 2025 16:20:59 -0500
+Subject: [PATCH 1/4] build: use pkg-config for linux dependencies
+
+Adapted from https://cgit.freebsd.org/ports/commit/?id=680dc7bb031d0f708c2dd38f055ec8d63ee68b8a
+
+Backported from a 3.3.4 patchset
+
+(cherry picked from commit 44e2d7fdaf32809e9b50d63834fc834dccb7752d)
+---
+ config/linux/build.xml | 39 ++++++++++++++++++++++-----------------
+ 1 file changed, 22 insertions(+), 17 deletions(-)
+
+diff --git a/config/linux/build.xml b/config/linux/build.xml
+index 67a5d0685..0c14b7866 100644
+--- a/config/linux/build.xml
++++ b/config/linux/build.xml
+@@ -262,13 +262,17 @@
+         <!-- NativeFileDialog -->
+         <build module="nfd" simple="true" linker="g++" if:true="${binding.nfd}">
+             <beforeCompile>
+-                <local name="linux.triplet"/>
+-                <condition property="linux.triplet" value="x86_64-linux-gnu"><not><isset property="build.arch.arm"/></not></condition>
+-                <condition property="linux.triplet" value="arm-linux-gnueabihf"><isset property="build.arch.arm32"/></condition>
+-                <condition property="linux.triplet" value="aarch64-linux-gnu"><isset property="build.arch.arm64"/></condition>
+-
++                <local name="gtk3-cflags"/>
++                <local name="gtk3-libflags"/>
++                <local name="stderr"/>
++                <exec outputproperty="gtk3-cflags" errorproperty="stderr" executable="pkg-config" failonerror="true" taskname="gtk-3.0-cflags">
++                    <arg line="--cflags gtk+-3.0"/>
++                </exec>
++                <exec outputproperty="gtk3-libflags" errorproperty="stderr" executable="pkg-config" failonerror="true" taskname="gtk-3.0-libflags">
++                    <arg line="--libs gtk+-3.0"/>
++                </exec>
+                 <compile lang="c++">
+-                    <arg line="-I/usr/include/gtk-3.0 -I/usr/include/glib-2.0 -I/usr/lib64/glib-2.0/include -I/usr/lib/${linux.triplet}/glib-2.0/include -I/usr/include/pango-1.0 -I/usr/include/harfbuzz -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/atk-1.0"/>
++                    <arg line="${gtk3-cflags}"/>
+                     <arg value="-I${src.main.rel}/include"/>
+                     <fileset dir="." includes="${src.main}/nfd_gtk.cpp"/>
+                 </compile>
+@@ -277,21 +281,22 @@
+                 <arg value="-I${src.main.rel}/include"/>
+             </source>
+             <link>
+-                <arg value="-lglib-2.0"/>
+-                <arg value="-lgobject-2.0"/>
+-                <arg value="-lgtk-3"/>
+-                <arg value="-lgdk-3"/>
++                <arg line="${gtk3-libflags}"/>
+             </link>
+         </build>
+         <build module="nfd" suffix="_portal" simple="true" linker="g++" if:true="${binding.nfd}">
+             <beforeCompile>
+-                <local name="linux.triplet"/>
+-                <condition property="linux.triplet" value="x86_64-linux-gnu"><not><isset property="build.arch.arm"/></not></condition>
+-                <condition property="linux.triplet" value="arm-linux-gnueabihf"><isset property="build.arch.arm32"/></condition>
+-                <condition property="linux.triplet" value="aarch64-linux-gnu"><isset property="build.arch.arm64"/></condition>
+-
++                <local name="glib-cflags"/>
++                <local name="glib-libflags"/>
++                <local name="stderr"/>
++                <exec outputproperty="glib-cflags" errorproperty="stderr" executable="pkg-config" failonerror="true" taskname="glib-cflags">
++                    <arg line="--cflags glib-2.0"/>
++                </exec>
++                <exec outputproperty="glib-libflags" errorproperty="stderr" executable="pkg-config" failonerror="true" taskname="glib-libflags">
++                    <arg line="--libs glib-2.0"/>
++                </exec>
+                 <compile lang="c++">
+-                    <arg line="-I/usr/include/dbus-1.0 -I/usr/lib64/dbus-1.0/include -I/usr/lib/${linux.triplet}/dbus-1.0/include"/>
++                    <arg line="${glib-cflags}"/>
+                     <arg value="-I${src.main.rel}/include"/>
+                     <fileset dir="." includes="${src.main}/nfd_portal.cpp"/>
+                 </compile>
+@@ -300,7 +305,7 @@
+                 <arg value="-I${src.main.rel}/include"/>
+             </source>
+             <link>
+-                <arg value="-ldbus-1"/>
++                <arg line="${glib-libflags}"/>
+             </link>
+         </build>
+ 
+-- 
+2.48.1
+
