@@ -32,7 +32,8 @@ lib.makeOverridable (
 
         buildPhase = ''
           runHook preBuild
-          ant init
+          concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray
+          ant init "''${flagsArray[@]}"
           runHook postBuild
         '';
 

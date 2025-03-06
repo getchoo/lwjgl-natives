@@ -3,22 +3,17 @@
   stdenv,
   breakpointHook,
   ant,
-  at-spi2-atk,
   buildPackages,
-  cairo,
   dbus,
   fetchAntDeps,
   fetchFromGitHub,
-  gdk-pixbuf,
   glib,
   gtk3,
-  harfbuzz,
   kotlin,
   libGLU,
   libffi,
   libglvnd,
-  pango,
-  replaceVars,
+  pkg-config,
   xorg,
 
   version,
@@ -38,20 +33,11 @@ stdenv.mkDerivation (finalAttrs: {
   };
 
   patches = [
-    (replaceVars ./fix-library-paths.patch (
-      lib.mapAttrs (lib.const lib.getDev) {
-        inherit
-          at-spi2-atk
-          cairo
-          dbus
-          gdk-pixbuf
-          glib
-          gtk3
-          harfbuzz
-          pango
-          ;
-      }
-    ))
+    ./0001-build-use-pkg-config-for-linux-dependencies.patch
+    ./0002-build-allow-local-kotlin.patch
+    ./0003-build-allow-linking-against-system-libffi.patch
+    ./0004-build-add-dbus-as-dependency-for-nfd_portal.patch
+    ./0005-build-allow-setting-pkg-config-prefix-suffix.patch
   ];
 
   antJdk = buildPackages.jdk_headless;
@@ -60,7 +46,9 @@ stdenv.mkDerivation (finalAttrs: {
       pname
       version
       src
+      patches
       antJdk
+      antFlags
       ;
     hash = antHash;
   };
@@ -70,32 +58,40 @@ stdenv.mkDerivation (finalAttrs: {
   nativeBuildInputs = [
     ant
     kotlin
+    pkg-config
   ] ++ lib.optional (lib.meta.availableOn stdenv.buildPlatform breakpointHook) breakpointHook;
 
   buildInputs = [
-    at-spi2-atk
-    cairo
     dbus
-    gdk-pixbuf
     glib
     gtk3
-    harfbuzz
     libGLU
     libffi
-    pango
     xorg.libX11
     xorg.libXt
   ];
 
+  antFlags =
+    [
+      "-Dgcc.libpath.opengl=${libglvnd}/lib"
+
+      "-Dlibffi.path=${lib.getLib libffi}/lib"
+      "-Duse.libffi.so=true"
+
+      "-Dlocal.kotlin=${lib.getBin kotlin}"
+    ]
+    ++ lib.optionals (stdenv.buildPlatform != stdenv.hostPlatform) [
+      "-Dgcc.prefix=${stdenv.cc.targetPrefix}"
+      "-Dpkg-config.prefix=${stdenv.cc.targetPrefix}"
+    ];
+
   env = {
-    NIX_CFLAGS = "-funroll-loops -I${lib.getDev gtk3}/include/gtk-3.0";
     NIX_LDFLAGS = "-lffi";
 
     JAVA_HOME = finalAttrs.antJdk.home;
     JAVA8_HOME = buildPackages.jdk8_headless.home;
 
     # https://github.com/LWJGL/lwjgl3/tree/e8552d53624f789c8f8c3dc35976fa02cba73cff/doc#build-configuration
-    LWJGL_BUILD_OFFLINE = "yes";
     LWJGL_BUILD_ARCH =
       if stdenv.hostPlatform.isx86_64 then
         "x64"
@@ -109,6 +105,8 @@ stdenv.mkDerivation (finalAttrs: {
         "riscv64"
       else
         throw "${stdenv.hostPlatform.cpu.name} is not a supported architecture";
+    LWJGL_BUILD_OFFLINE = "yes";
+    LWJGL_BUILD_TYPE = "release/${finalAttrs.version}";
   };
 
   # Put the dependencies we already downloaded in the right place
@@ -120,29 +118,21 @@ stdenv.mkDerivation (finalAttrs: {
 
   postBuild = ''
     mkdir $out
-    ant \
-      -emacs \
-      -Dgcc.libpath.opengl=${libglvnd}/lib \
-    	compile-templates compile-native
+    concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray
+    ant compile-templates compile compile-native "''${flagsArray[@]}"
   '';
 
   postInstall = ''
-    exit 1
+    mkdir -p $out/lib
+    find . -type f -name '*.so' -exec install -Dm755 -t $out/lib {} \;
   '';
 
   meta = {
-    platforms =
-
-      let
-        architectures = lib.flatten [
-          lib.platforms.x86_64
-          lib.platforms.i686
-          lib.platforms.aarch64
-          lib.platforms.armv7
-          lib.platforms.riscv64
-        ];
-      in
-
-      lib.intersectLists architectures lib.platforms.linux;
+    description = "Lightweight Java Game Library";
+    homepage = "https://www.lwjgl.org/";
+    changelog = "https://github.com/LWJGL/lwjgl3/releases/tag/${toString finalAttrs.src.tag}";
+    license = lib.licenses.bsd3;
+    maintainers = with lib.maintainers; [ getchoo ];
+    platforms = lib.platforms.linux;
   };
 })
