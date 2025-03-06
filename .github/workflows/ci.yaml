@@ -21,10 +21,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  eval:
-    name: Eval
+  build:
+    name: Build (${{ matrix.system }})
 
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            system: x86_64-linux
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -35,36 +41,10 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v30
 
-      - name: Evaluate Flake 
+      - name: Run build
         run: |
           nix flake check \
-            --all-systems \
-            --no-build \
+            --fallback \
+            --keep-going \
+            --print-build-logs \
             --show-trace
-
-  # build:
-  #   name: Build (${{ matrix.system }})
-
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - os: ubuntu-latest
-  #           system: x86_64-linux
-
-  #   runs-on: ${{ matrix.os }}
-
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with:
-  #         ref: ${{ inputs.ref }}
-
-  #     - name: Install Nix
-  #       uses: cachix/install-nix-action@v30
-
-  #     - name: Run build
-  #       run: |
-  #         nix flake check \
-  #           --fallback \
-  #           --print-build-logs \
-  #           --show-trace
