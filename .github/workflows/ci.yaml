@@ -21,10 +21,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  eval:
-    name: Eval
+  build:
+    name: Build (${{ matrix.system }}/${{ matrix.target }})
 
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            system: x86_64-linux
+            target: x86_64-unknown-linux-gnu
+
+          - os: ubuntu-latest
+            system: x86_64-linux
+            target: aarch64-unknown-linux-gnu
+
+          - os: ubuntu-latest
+            system: x86_64-linux
+            target: riscv64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -35,36 +51,15 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v30
 
-      - name: Evaluate Flake 
+      - name: Run build
+        env:
+          BASE_ATTRIBUTE: "${{ matrix.target}}-lwjgl"
         run: |
-          nix flake check \
-            --all-systems \
-            --no-build \
-            --show-trace
-
-  # build:
-  #   name: Build (${{ matrix.system }})
-
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - os: ubuntu-latest
-  #           system: x86_64-linux
-
-  #   runs-on: ${{ matrix.os }}
-
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #       with:
-  #         ref: ${{ inputs.ref }}
-
-  #     - name: Install Nix
-  #       uses: cachix/install-nix-action@v30
-
-  #     - name: Run build
-  #       run: |
-  #         nix flake check \
-  #           --fallback \
-  #           --print-build-logs \
-  #           --show-trace
+          nix build \
+            --fallback \
+            --keep-going \
+            --print-build-logs \
+            --show-trace \
+            ".#\"$BASE_ATTRIBUTE-3.3.3\"" \
+            ".#\"$BASE_ATTRIBUTE-3.3.4\"" \
+            ".#\"$BASE_ATTRIBUTE-3.3.6\""

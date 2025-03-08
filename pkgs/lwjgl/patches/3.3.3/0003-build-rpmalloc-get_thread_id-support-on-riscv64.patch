@@ -1,0 +1,28 @@
+From 6e3048e9f0e4fb13a72c219337f2908736efc8ff Mon Sep 17 00:00:00 2001
+From: Jackson Huff <lightingdzeyenr@gmail.com>
+Date: Sat, 7 Oct 2023 08:37:11 +0000
+Subject: [PATCH 3/4] build(rpmalloc) get_thread_id support on riscv64
+
+Backport of https://github.com/LWJGL/lwjgl3/pull/890
+
+(cherry picked from commit 924b295fd7e7fde3cbe19ea30d6b115e6dd0ef15)
+---
+ modules/lwjgl/rpmalloc/src/main/c/rpmalloc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/modules/lwjgl/rpmalloc/src/main/c/rpmalloc.c b/modules/lwjgl/rpmalloc/src/main/c/rpmalloc.c
+index 755127d9f..317242721 100644
+--- a/modules/lwjgl/rpmalloc/src/main/c/rpmalloc.c
++++ b/modules/lwjgl/rpmalloc/src/main/c/rpmalloc.c
+@@ -808,6 +808,8 @@ get_thread_id(void) {
+ #    else
+ 	__asm__ volatile ("mrs %0, tpidr_el0" : "=r" (tid));
+ #    endif
++#  elif defined(__riscv)
++    __asm__ volatile ("mv %0, tp" : "=r" (tid));
+ #  else
+ #    error This platform needs implementation of get_thread_id()
+ #  endif
+-- 
+2.48.1
+

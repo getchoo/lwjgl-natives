@@ -3,14 +3,17 @@
     # Targets we want to build for
     targets = [
       "x86_64-unknown-linux-gnu"
-      "i686-unknown-linux-gnu"
       "aarch64-unknown-linux-gnu"
-      "armv7l-unknown-linux-gnueabihf"
       "riscv64-unknown-linux-gnu"
     ];
 
     # Versions we're building
     versions = {
+      "3.3.3" = {
+        hash = "sha256-5Zyl1UmfWGdxLWfQwdCO04pVcRUZh6QpV/ND5u4CYx8=";
+        antHash = "sha256-wh15d3DPaIegkaA/AWvuGIxPFSOHmGA9iADy4B45IAs=";
+      };
+
       "3.3.4" = {
         hash = "sha256-U0pPeTqVoruqqhhMrBrczy0qt83a8atr8DyRcGgX/yI=";
         antHash = "sha256-BE2sSPgYELCkww8aJV5DYTgHy4LT14RTVh6gRXA64+Q=";

@@ -1,0 +1,104 @@
+From e505a0af3154bbfdbce7506be14604e0b1973f4b Mon Sep 17 00:00:00 2001
+From: Ioannis Tsakpinis <iotsakp@gmail.com>
+Date: Fri, 7 Jun 2024 19:28:12 +0300
+Subject: [PATCH 4/4] build(core) fix warnings & errors on GCC 14
+
+Backport of https://github.com/LWJGL/lwjgl3/commit/2923ace9dc239d64db1cf3c55238a2af9d6ce7e4
+
+(cherry picked from commit 2923ace9dc239d64db1cf3c55238a2af9d6ce7e4)
+---
+ config/linux/build.xml                                    | 4 ++--
+ config/macos/build.xml                                    | 8 +++++---
+ modules/lwjgl/core/src/main/c/common_tools.c              | 2 +-
+ modules/lwjgl/stb/src/generated/c/org_lwjgl_stb_STBDXT.c  | 1 +
+ .../stb/src/templates/kotlin/stb/templates/stb_dxt.kt     | 1 +
+ 5 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/config/linux/build.xml b/config/linux/build.xml
+index 217ab784b..a5b7a1799 100644
+--- a/config/linux/build.xml
++++ b/config/linux/build.xml
+@@ -40,7 +40,7 @@
+                 <arg line="-m64" if:set="build.arch.x64"/>
+                 <arg line="-m32 -mfpmath=sse -msse -msse2" if:set="build.arch.x86"/>
+                 <arg line="-march=rv64g" if:set="build.arch.riscv64"/>
+-                <arg line="-O3 @{lto} -fPIC @{flags} -pthread -DNDEBUG -DLWJGL_LINUX -DLWJGL_${build.arch}"/>
++                <arg line="-O3 -flto=auto -fPIC @{flags} -pthread -DNDEBUG -DLWJGL_LINUX -DLWJGL_${build.arch}"/>
+                 <arg line="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D_GNU_SOURCE"/>
+                 <arg line="-D_FILE_OFFSET_BITS=64"/>
+ 
+@@ -131,7 +131,7 @@
+                 <arg value="-m32" if:set="build.arch.x86"/>
+ 
+                 <arg line="-z noexecstack"/>
+-                <arg line="-O3 -flto -fPIC -pthread -o ${lib.arch}/lib${name}.so"/>
++                <arg line="-O3 -flto=auto -fPIC -pthread -o ${lib.arch}/lib${name}.so"/>
+ 
+                 <arg line="-Wl,--no-undefined"/>
+                 <arg line="-Wl,--version-script,${version.script}"/>
+diff --git a/config/macos/build.xml b/config/macos/build.xml
+index 79ccd34fc..e604e5ac1 100644
+--- a/config/macos/build.xml
++++ b/config/macos/build.xml
+@@ -32,8 +32,9 @@
+             <mkdir dir="@{dest}"/>
+             <apply dir="@{dest}" executable="${clang}" dest="@{dest}" skipemptyfilesets="true" failonerror="true" parallel="true" taskname="Compiler">
+                 <arg line="-c -ObjC" unless:set="cpp"/>
+-                <arg line="-c -std=c++14" if:set="cpp"/>
+-                <arg line="-O3 -flto -fPIC @{flags} -DNDEBUG -DLWJGL_MACOS -DLWJGL_${build.arch} -isysroot ${sdkroot} -mmacosx-version-min=${macosx-version-min}"/>
++                <arg line="-c -std=c++20" if:set="cpp"/>
++                <arg line="-O3 -flto=auto -fPIC @{flags} -DNDEBUG -DLWJGL_MACOS -DLWJGL_${build.arch} -isysroot ${sdkroot} -mmacosx-version-min=@{macos}"/>
++                <arg line="-target x64-apple-darwin -arch x86_64" unless:set="build.arch.arm"/>
+                 <arg line="-target aarch64-apple-darwin -arch arm64" if:set="build.arch.arm"/>
+ 
+                 <arg value="-I${jni.headers}"/>
+@@ -108,7 +109,8 @@
+             <beforeLink unless:set="lib-uptodate"/>
+             <apply executable="${clang}" failonerror="true" parallel="true" taskname="Linker" unless:set="lib-uptodate">
+                 <srcfile/>
+-                <arg line='-dynamiclib -Wl,-no_compact_unwind -mmacosx-version-min=${macosx-version-min} -o ${lib.arch}/lib${name}.dylib -O3 -flto -fPIC'/>
++                <arg line='-dynamiclib -Wl,-no_compact_unwind -mmacosx-version-min=@{macos} -o ${lib.arch}/lib${name}.dylib -O3 -flto=auto -fPIC'/>
++                <arg line="-target x64-apple-darwin -arch x86_64" unless:set="build.arch.arm"/>
+                 <arg line="-target aarch64-apple-darwin -arch arm64" if:set="build.arch.arm"/>
+                 <fileset dir="${dest}" includes="*.o"/>
+                 <link/>
+diff --git a/modules/lwjgl/core/src/main/c/common_tools.c b/modules/lwjgl/core/src/main/c/common_tools.c
+index 73cc3972d..4911a8159 100644
+--- a/modules/lwjgl/core/src/main/c/common_tools.c
++++ b/modules/lwjgl/core/src/main/c/common_tools.c
+@@ -36,7 +36,7 @@ static inline void detachCurrentThread(void) {
+ }
+ 
+ static inline EnvData* createEnvData(jboolean async, JNIEnv* env) {
+-    EnvData* data = (EnvData*)calloc(sizeof(EnvData), 1);
++    EnvData* data = (EnvData*)calloc(1, sizeof(EnvData));
+ 
+     data->async = async;
+     data->env = env;
+diff --git a/modules/lwjgl/stb/src/generated/c/org_lwjgl_stb_STBDXT.c b/modules/lwjgl/stb/src/generated/c/org_lwjgl_stb_STBDXT.c
+index 54e20d48a..3aa6b3ee2 100644
+--- a/modules/lwjgl/stb/src/generated/c/org_lwjgl_stb_STBDXT.c
++++ b/modules/lwjgl/stb/src/generated/c/org_lwjgl_stb_STBDXT.c
+@@ -7,6 +7,7 @@
+ DISABLE_WARNINGS()
+ #define STB_DXT_IMPLEMENTATION
+ #define STB_DXT_STATIC
++#include <string.h>
+ #include "stb_dxt.h"
+ ENABLE_WARNINGS()
+ 
+diff --git a/modules/lwjgl/stb/src/templates/kotlin/stb/templates/stb_dxt.kt b/modules/lwjgl/stb/src/templates/kotlin/stb/templates/stb_dxt.kt
+index e49031d47..28bff9352 100644
+--- a/modules/lwjgl/stb/src/templates/kotlin/stb/templates/stb_dxt.kt
++++ b/modules/lwjgl/stb/src/templates/kotlin/stb/templates/stb_dxt.kt
+@@ -11,6 +11,7 @@ val stb_dxt = "STBDXT".nativeClass(Module.STB, prefix = "STB", prefixMethod = "s
+     includeSTBAPI(
+         """#define STB_DXT_IMPLEMENTATION
+ #define STB_DXT_STATIC
++#include <string.h>
+ #include "stb_dxt.h"""")
+ 
+     documentation =
+-- 
+2.48.1
+

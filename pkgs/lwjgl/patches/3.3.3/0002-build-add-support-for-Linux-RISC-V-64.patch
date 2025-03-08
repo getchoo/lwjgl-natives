@@ -1,0 +1,657 @@
+From 428742a24616448a1453a21b2431373089b892e0 Mon Sep 17 00:00:00 2001
+From: Glavo <zjx001202@gmail.com>
+Date: Fri, 26 May 2023 20:14:13 +0800
+Subject: [PATCH 2/4] build: add support for Linux RISC-V 64
+
+Backport of https://github.com/LWJGL/lwjgl3/pull/890
+
+(cherry picked from commit 437a4ad56feaf358f611c87c1cf470352df42bbd)
+---
+ README.md                                     |  1 +
+ build.gradle.kts                              |  9 +-
+ build.xml                                     | 30 ++++++-
+ config/build-bindings.xml                     | 10 +--
+ config/build-definitions.xml                  | 28 +++++--
+ config/linux/build.xml                        | 13 +--
+ config/macos/build.xml                        |  2 +-
+ config/windows/build.xml                      |  2 +-
+ .../core/src/main/c/libffi/arm/ffitarget.h    |  6 +-
+ modules/lwjgl/core/src/main/c/libffi/ffi.h    | 22 +++--
+ .../src/main/c/libffi/riscv64/ffitarget.h     | 82 +++++++++++++++++++
+ .../core/src/main/c/libffi/x86/ffitarget.h    |  3 +
+ .../main/java/org/lwjgl/system/Platform.java  | 16 +++-
+ .../c/org_lwjgl_util_xxhash_XXHash.c          |  8 +-
+ .../kotlin/xxhash/templates/xxhash.kt         |  8 +-
+ 15 files changed, 189 insertions(+), 51 deletions(-)
+ create mode 100644 modules/lwjgl/core/src/main/c/libffi/riscv64/ffitarget.h
+
+diff --git a/README.md b/README.md
+index 8007f292d..fdab7c8aa 100644
+--- a/README.md
++++ b/README.md
+@@ -71,6 +71,7 @@ following platforms/architectures:
+ - Linux x64
+ - Linux arm64 (ARMv8/AArch64)
+ - Linux arm32 (ARMv7/armhf)
++- Linux riscv64
+ - macOS x64
+ - macOS arm64
+ - Windows x64
+diff --git a/build.gradle.kts b/build.gradle.kts
+index bf8f96ae6..7f7461374 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -62,6 +62,7 @@ enum class Platforms(val classifier: String) {
+     LINUX("linux"),
+     LINUX_ARM64("linux-arm64"),
+     LINUX_ARM32("linux-arm32"),
++    LINUX_RISCV64("linux-riscv64"),
+     MACOS("macos"),
+     MACOS_ARM64("macos-arm64"),
+     WINDOWS("windows"),
+@@ -88,7 +89,7 @@ enum class Artifacts(
+     BGFX(
+         "lwjgl-bgfx", "LWJGL - bgfx bindings",
+         "A cross-platform, graphics API agnostic rendering library. It provides a high performance, low level abstraction for common platform graphics APIs like OpenGL, Direct3D and Apple Metal.",
+-        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32,
++        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32, Platforms.LINUX_RISCV64,
+         Platforms.MACOS, Platforms.MACOS_ARM64,
+         Platforms.WINDOWS, Platforms.WINDOWS_X86
+     ),
+@@ -136,7 +137,7 @@ enum class Artifacts(
+     KTX(
+         "lwjgl-ktx", "LWJGL - KTX (Khronos Texture) bindings",
+         "A lightweight container for textures for OpenGL®, Vulkan® and other GPU APIs.",
+-        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32,
++        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32, Platforms.LINUX_RISCV64,
+         Platforms.MACOS, Platforms.MACOS_ARM64,
+         Platforms.WINDOWS, Platforms.WINDOWS_ARM64
+     ),
+@@ -218,7 +219,7 @@ enum class Artifacts(
+     OPENXR(
+         "lwjgl-openxr", "LWJGL - OpenXR bindings",
+         "A royalty-free, open standard that provides high-performance access to Augmented Reality (AR) and Virtual Reality (VR)—collectively known as XR—platforms and devices.",
+-        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32,
++        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32, Platforms.LINUX_RISCV64,
+         Platforms.WINDOWS, Platforms.WINDOWS_X86, Platforms.WINDOWS_ARM64
+     ),
+     OPUS(
+@@ -239,7 +240,7 @@ enum class Artifacts(
+     REMOTERY(
+         "lwjgl-remotery", "LWJGL - Remotery bindings",
+         "A realtime CPU/GPU profiler hosted in a single C file with a viewer that runs in a web browser.",
+-        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32,
++        Platforms.LINUX, Platforms.LINUX_ARM64, Platforms.LINUX_ARM32, Platforms.LINUX_RISCV64,
+         Platforms.MACOS, Platforms.MACOS_ARM64,
+         Platforms.WINDOWS, Platforms.WINDOWS_X86
+     ),
+diff --git a/build.xml b/build.xml
+index d0fad8224..7490b210f 100644
+--- a/build.xml
++++ b/build.xml
+@@ -900,7 +900,7 @@
+             <jvmarg value="-Dorg.lwjgl.util.Debug=true"/>
+             <jvmarg value="-Dorg.lwjgl.util.DebugAllocator=true"/>
+             <jvmarg value="-XstartOnFirstThread" if:set="platform.macos"/>
+-            <jvmarg value="-Xss256k" unless:set="build.arch.arm"/> <!-- for StackTest::testSOE -->
++            <jvmarg value="-Xss256k" if:set="build.arch.x64|x86"/> <!-- for StackTest::testSOE -->
+             <jvmarg line="${jvmargs}" if:set="jvmargs"/>
+ 
+             <xmlfileset dir="${config}" includes="tests.xml,tests_${platform}.xml"/>
+@@ -1176,6 +1176,7 @@
+         <element name="linux-content" optional="true"/>
+         <element name="linux-arm64-content" optional="true"/>
+         <element name="linux-arm32-content" optional="true"/>
++        <element name="linux-riscv64-content" optional="true"/>
+         <element name="macos-content" optional="true"/>
+         <element name="macos-arm64-content" optional="true"/>
+         <element name="windows-content" optional="true"/>
+@@ -1206,6 +1207,9 @@
+                 <get-release platform="linux" arch="arm32" file="lib@{native-library}.so" if:set="auto-natives"/>
+                 <get-release platform="linux" arch="arm32" file="lib@{native-library}.so.git" if:set="git-revision"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="lib@{native-library}.so" if:set="auto-natives"/>
++                <get-release platform="linux" arch="riscv64" file="lib@{native-library}.so.git" if:set="git-revision"/>
++
+                 <get-release platform="macos" arch="x64" file="lib@{native-library}.dylib" if:set="auto-natives"/>
+                 <get-release platform="macos" arch="x64" file="lib@{native-library}.dylib.git" if:set="git-revision"/>
+ 
+@@ -1273,6 +1277,9 @@
+                     <natives-jar name="@{name}" title="@{title}" platform="linux-arm32" path="linux/arm32" type="so">
+                         <linux-arm32-content/>
+                     </natives-jar>
++                    <natives-jar name="@{name}" title="@{title}" platform="linux-riscv64" path="linux/riscv64" type="so">
++                        <linux-riscv64-content/>
++                    </natives-jar>
+                     <natives-jar name="@{name}" title="@{title}" platform="macos" path="macos/x64" type="dylib">
+                         <macos-content/>
+                     </natives-jar>
+@@ -1301,6 +1308,7 @@
+         <element name="linux" optional="true"/>
+         <element name="linux-arm64" optional="true"/>
+         <element name="linux-arm32" optional="true"/>
++        <element name="linux-riscv64" optional="true"/>
+         <element name="macos" optional="true"/>
+         <element name="macos-arm64" optional="true"/>
+         <element name="windows" optional="true"/>
+@@ -1328,6 +1336,7 @@
+                 <linux-content><linux/></linux-content>
+                 <linux-arm64-content><linux-arm64/></linux-arm64-content>
+                 <linux-arm32-content><linux-arm32/></linux-arm32-content>
++                <linux-riscv64-content><linux-riscv64/></linux-riscv64-content>
+                 <macos-content><macos/></macos-content>
+                 <macos-arm64-content><macos-arm64/></macos-arm64-content>
+                 <windows-content><windows/></windows-content>
+@@ -1538,6 +1547,10 @@
+                 <get-release platform="linux" arch="arm32" file="libassimp.so.git"/>
+                 <get-release platform="linux" arch="arm32" file="libdraco.so"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="libassimp.so"/>
++                <get-release platform="linux" arch="riscv64" file="libassimp.so.git"/>
++                <get-release platform="linux" arch="riscv64" file="libdraco.so"/>
++
+                 <get-release platform="macos" arch="x64" file="libassimp.dylib"/>
+                 <get-release platform="macos" arch="x64" file="libassimp.dylib.git"/>
+                 <get-release platform="macos" arch="x64" file="libdraco.dylib"/>
+@@ -1572,6 +1585,9 @@
+                 <get-release platform="linux" arch="arm32" file="libbgfx.so"/>
+                 <get-release platform="linux" arch="arm32" file="libbgfx.so.git"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="libbgfx.so"/>
++                <get-release platform="linux" arch="riscv64" file="libbgfx.so.git"/>
++
+                 <get-release platform="macos" arch="x64" file="libbgfx.dylib"/>
+                 <get-release platform="macos" arch="x64" file="libbgfx.dylib.git"/>
+ 
+@@ -1610,6 +1626,9 @@
+                 <get-release platform="linux" arch="arm32" file="libglfw.so"/>
+                 <get-release platform="linux" arch="arm32" file="libglfw.so.git"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="libglfw.so"/>
++                <get-release platform="linux" arch="riscv64" file="libglfw.so.git"/>
++
+                 <get-release platform="macos" arch="x64" file="libglfw.dylib"/>
+                 <get-release platform="macos" arch="x64" file="libglfw.dylib.git"/>
+                 <get-release platform="macos" arch="x64" file="libglfw_async.dylib"/>
+@@ -1649,6 +1668,7 @@
+                 <get-release platform="linux" arch="x64" file="libktx.so"/>
+                 <get-release platform="linux" arch="arm64" file="libktx.so"/>
+                 <get-release platform="linux" arch="arm32" file="libktx.so"/>
++                <get-release platform="linux" arch="riscv64" file="libktx.so"/>
+                 <get-release platform="macos" arch="x64" file="libktx.dylib"/>
+                 <get-release platform="macos" arch="arm64" file="libktx.dylib"/>
+                 <get-release platform="windows" arch="x64" file="ktx.dll"/>
+@@ -1693,6 +1713,7 @@
+                 <get-release platform="linux" arch="x64" file="liblwjgl_nfd_portal.so"/>
+                 <get-release platform="linux" arch="arm64" file="liblwjgl_nfd_portal.so"/>
+                 <get-release platform="linux" arch="arm32" file="liblwjgl_nfd_portal.so"/>
++                <get-release platform="linux" arch="riscv64" file="liblwjgl_nfd_portal.so"/>
+             </natives>
+         </release-module>
+ 
+@@ -1714,6 +1735,9 @@
+                 <get-release platform="linux" arch="arm32" file="libopenal.so"/>
+                 <get-release platform="linux" arch="arm32" file="libopenal.so.git"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="libopenal.so"/>
++                <get-release platform="linux" arch="riscv64" file="libopenal.so.git"/>
++
+                 <get-release platform="macos" arch="x64" file="libopenal.dylib"/>
+                 <get-release platform="macos" arch="x64" file="libopenal.dylib.git"/>
+ 
+@@ -1773,6 +1797,9 @@
+                 <get-release platform="linux" arch="arm32" file="libopenxr_loader.so"/>
+                 <get-release platform="linux" arch="arm32" file="libopenxr_loader.so.git"/>
+ 
++                <get-release platform="linux" arch="riscv64" file="libopenxr_loader.so"/>
++                <get-release platform="linux" arch="riscv64" file="libopenxr_loader.so.git"/>
++
+                 <get-release platform="windows" arch="x64" file="openxr-loader.dll"/>
+                 <get-release platform="windows" arch="x64" file="openxr-loader.dll.git"/>
+ 
+@@ -1804,6 +1831,7 @@
+                 <get-release platform="linux" arch="x64" file="liblwjgl_remotery.so"/>
+                 <get-release platform="linux" arch="arm64" file="liblwjgl_remotery.so"/>
+                 <get-release platform="linux" arch="arm32" file="liblwjgl_remotery.so"/>
++                <get-release platform="linux" arch="riscv64" file="liblwjgl_remotery.so"/>
+ 
+                 <get-release platform="macos" arch="x64" file="liblwjgl_remotery.dylib"/>
+                 <get-release platform="macos" arch="arm64" file="liblwjgl_remotery.dylib"/>
+diff --git a/config/build-bindings.xml b/config/build-bindings.xml
+index 16316c159..90461d07e 100644
+--- a/config/build-bindings.xml
++++ b/config/build-bindings.xml
+@@ -37,7 +37,7 @@ This script is included in /config/build-definitions.xml.
+     <property name="binding.lz4" value="true"/>
+     <condition property="binding.meow" value="true" else="false">
+         <or>
+-            <not><isset property="build.arch.arm"/></not>
++            <isset property="build.arch.x64|x86"/>
+             <isset property="build.arch.arm64"/>
+         </or>
+     </condition>
+@@ -50,7 +50,7 @@ This script is included in /config/build-definitions.xml.
+     <property name="binding.opencl" value="true"/>
+     <property name="binding.opengl" value="true"/>
+     <property name="binding.opengles" value="true"/>
+-    <condition property="binding.openvr" value="false" else="true"><isset property="build.arch.arm"/></condition>
++    <condition property="binding.openvr" value="true" else="false"><isset property="build.arch.x64|x86"/></condition>
+     <property name="binding.openxr" value="true"/>
+     <property name="binding.opus" value="true"/>
+     <property name="binding.par" value="true"/>
+@@ -63,11 +63,11 @@ This script is included in /config/build-definitions.xml.
+     <property name="binding.rpmalloc" value="true"/>
+     <property name="binding.shaderc" value="true"/>
+     <property name="binding.spvc" value="true"/>
+-    <condition property="binding.sse" value="false" else="true"><isset property="build.arch.arm"/></condition>
++    <condition property="binding.sse" value="true" else="false"><isset property="build.arch.x64|x86"/></condition>
+     <property name="binding.stb" value="true"/>
+     <property name="binding.tinyexr" value="true"/>
+     <property name="binding.tinyfd" value="true"/>
+-    <condition property="binding.tootle" value="false" else="true"><isset property="build.arch.arm"/></condition>
++    <condition property="binding.tootle" value="true" else="false"><isset property="build.arch.x64|x86"/></condition>
+     <property name="binding.vulkan" value="true"/>
+     <condition property="binding.vma" value="true" else="false"><istrue value="${binding.vulkan}"/></condition>
+     <property name="binding.xxhash" value="true"/>
+@@ -89,7 +89,7 @@ This script is included in /config/build-definitions.xml.
+         <and>
+             <isset property="OCULUS_SDK_PATH"/>
+             <available file="${OCULUS_SDK_PATH}/LibOVR/Include/OVR_CAPI.h"/>
+-            <not><isset property="build.arch.arm"/></not>
++            <isset property="build.arch.x64|x86"/>
+         </and>
+     </condition>
+ 
+diff --git a/config/build-definitions.xml b/config/build-definitions.xml
+index 6fc879679..04a9ddbea 100644
+--- a/config/build-definitions.xml
++++ b/config/build-definitions.xml
+@@ -34,15 +34,29 @@ This script is included in /build.xml and /config/update-dependencies.xml.
+             <contains string="${os.arch}"    substring="aarch64"/>
+         </or>
+     </condition>
++    <condition property="build.arch.riscv" value="true">
++        <or>
++            <contains string="${build.arch}" substring="riscv"/>
++            <contains string="${os.arch}"    substring="riscv"/>
++        </or>
++    </condition>
++    <condition property="build.arch.x64|x86" value="true">
++        <and>
++            <not><isset property="build.arch.arm"/></not>
++            <not><isset property="build.arch.riscv"/></not>
++        </and>
++    </condition>
+ 
+     <!-- Normalize os.arch -->
+-    <condition property="build.arch" value="arm64" unless:set="build.arch"><and>     <isset property="build.arch.arm"/>      <istrue  value="${is64Bit}"/></and></condition>
+-    <condition property="build.arch" value="arm32" unless:set="build.arch"><and>     <isset property="build.arch.arm"/>      <isfalse value="${is64Bit}"/></and></condition>
+-    <condition property="build.arch" value="x64"   unless:set="build.arch"><and><not><isset property="build.arch.arm"/></not><istrue  value="${is64Bit}"/></and></condition>
+-    <condition property="build.arch" value="x86"   unless:set="build.arch"><and><not><isset property="build.arch.arm"/></not><isfalse value="${is64Bit}"/></and></condition>
+-
+-    <fail message="Invalid or unsupported build architecture: ${build.arch}. Supported: x64, x86, arm64, arm32">
+-        <condition><not><matches string="${build.arch}" pattern="^(x64|x86|arm64|arm32)$"/></not></condition>
++    <condition property="build.arch" value="arm64"      unless:set="build.arch"><and><isset property="build.arch.arm"/>    <istrue  value="${is64Bit}"/></and></condition>
++    <condition property="build.arch" value="arm32"      unless:set="build.arch"><and><isset property="build.arch.arm"/>    <isfalse value="${is64Bit}"/></and></condition>
++    <condition property="build.arch" value="riscv64"    unless:set="build.arch"><and><isset property="build.arch.riscv"/>  <istrue  value="${is64Bit}"/></and></condition>
++    <condition property="build.arch" value="x64"        unless:set="build.arch"><and><isset property="build.arch.x64|x86"/><istrue  value="${is64Bit}"/></and></condition>
++    <condition property="build.arch" value="x86"        unless:set="build.arch"><and><isset property="build.arch.x64|x86"/><isfalse value="${is64Bit}"/></and></condition>
++    <property      name="build.arch" value="${os.arch}" unless:set="build.arch"/>
++
++    <fail message="Invalid or unsupported build architecture: ${build.arch}. Supported: x64, x86, arm64, arm32, riscv64">
++        <condition><not><matches string="${build.arch}" pattern="^(x64|x86|arm64|arm32|riscv64)$"/></not></condition>
+     </fail>
+ 
+     <property name="build.arch.${build.arch}" value="true"/>
+diff --git a/config/linux/build.xml b/config/linux/build.xml
+index 0c14b7866..217ab784b 100644
+--- a/config/linux/build.xml
++++ b/config/linux/build.xml
+@@ -7,6 +7,7 @@
+ 
+     <property name="gcc.prefix" value="aarch64-linux-gnu-" if:set="build.arch.arm64"/>
+     <property name="gcc.prefix" value="arm-linux-gnueabihf-" if:set="build.arch.arm32"/>
++    <property name="gcc.prefix" value="riscv64-linux-gnu-" if:set="build.arch.riscv64"/>
+ 
+     <condition property="gcc.prefix" value="${gcc.prefix}" else="">
+         <isset property="gcc.prefix"/>
+@@ -38,6 +39,7 @@
+                 <arg line="-c -std=gnu++14" if:set="cpp"/>
+                 <arg line="-m64" if:set="build.arch.x64"/>
+                 <arg line="-m32 -mfpmath=sse -msse -msse2" if:set="build.arch.x86"/>
++                <arg line="-march=rv64g" if:set="build.arch.riscv64"/>
+                 <arg line="-O3 @{lto} -fPIC @{flags} -pthread -DNDEBUG -DLWJGL_LINUX -DLWJGL_${build.arch}"/>
+                 <arg line="-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D_GNU_SOURCE"/>
+                 <arg line="-D_FILE_OFFSET_BITS=64"/>
+@@ -177,7 +179,8 @@
+                 <arg value="-I${src.main.rel}/libffi"/>
+                 <arg value="-I${src.main.rel}/libffi/aarch64" if:set="build.arch.arm64"/>
+                 <arg value="-I${src.main.rel}/libffi/arm" if:set="build.arch.arm32"/>
+-                <arg value="-I${src.main.rel}/libffi/x86" unless:set="build.arch.arm"/>
++                <arg value="-I${src.main.rel}/libffi/riscv64" if:set="build.arch.riscv64"/>
++                <arg value="-I${src.main.rel}/libffi/x86" if:set="build.arch.x64|x86"/>
+                 <arg value="-DX86_64" if:set="build.arch.x64"/> <!-- for libffi/x86/ffitarget.h -->
+                 <arg value="-I${src.main.rel}/${platform}/liburing"/>
+                 <arg value="-I${src.main.rel}/${platform}/liburing/include"/>
+@@ -233,9 +236,9 @@
+         <!-- Meow -->
+         <sequential if:true="${binding.meow}">
+             <local name="meow.flags"/>
+-            <condition property="meow.flags" value="-march=armv8-a+crypto" else="-maes -msse4.2">
+-                <isset property="build.arch.arm"/>
+-            </condition>
++            <condition property="meow.flags" value="-march=armv8-a+crypto"><isset property="build.arch.arm"/></condition>
++            <condition property="meow.flags" value="-maes -msse4.2"><isset property="build.arch.x64|x86"/></condition>
++
+             <build module="meow" simple="true" flags="-Werror -Wfatal-errors ${meow.flags}"/>
+         </sequential>
+ 
+@@ -460,7 +463,7 @@
+                     <fileset dir="." includes="${src.main}/common/*.c"/>
+                     <fileset dir="." includes="${src.main}/compress/*.c"/>
+                     <fileset dir="." includes="${src.main}/decompress/*.c"/>
+-                    <fileset dir="." includes="${src.main}/decompress/*.S" unless:set="build.arch.arm"/>
++                    <fileset dir="." includes="${src.main}/decompress/*.S" if:set="build.arch.x64|x86"/>
+                     <fileset dir="." includes="${src.main}/dictBuilder/*.c"/>
+                     <fileset dir="." includes="${module.lwjgl}/xxhash/src/main/c/xxhash.c"/>
+                 </compile>
+diff --git a/config/macos/build.xml b/config/macos/build.xml
+index df22e3ef6..79ccd34fc 100644
+--- a/config/macos/build.xml
++++ b/config/macos/build.xml
+@@ -141,7 +141,7 @@
+                 <arg value="-I${src.main.rel}/libffi"/>
+                 <arg value="-I${src.main.rel}/libffi/aarch64" if:set="build.arch.arm64"/>
+                 <arg value="-I${src.main.rel}/libffi/arm" if:set="build.arch.arm32"/>
+-                <arg value="-I${src.main.rel}/libffi/x86" unless:set="build.arch.arm"/>
++                <arg value="-I${src.main.rel}/libffi/x86" if:set="build.arch.x64|x86"/>
+                 <!-- for libffi/x86/ffitarget.h -->
+                 <arg value="-DX86_64" if:set="build.arch.x64"/>
+                 <fileset dir=".">
+diff --git a/config/windows/build.xml b/config/windows/build.xml
+index fc1476c9e..6aa67c5ea 100644
+--- a/config/windows/build.xml
++++ b/config/windows/build.xml
+@@ -150,7 +150,7 @@ EXPORTS
+                 <arg value="/I${src.main}\libffi"/>
+                 <arg value="/I${src.main}\libffi\aarch64" if:set="build.arch.arm64"/>
+                 <arg value="/I${src.main}\libffi\arm" if:set="build.arch.arm32"/>
+-                <arg value="/I${src.main}\libffi\x86" unless:set="build.arch.arm"/>
++                <arg value="/I${src.main}\libffi\x86" if:set="build.arch.x64|x86"/>
+                 <!-- for libffi/x86/ffitarget.h -->
+                 <arg value="/DX86_WIN32" if:set="build.arch.x86"/>
+                 <arg value="/DX86_WIN64" if:set="build.arch.x64"/>
+diff --git a/modules/lwjgl/core/src/main/c/libffi/arm/ffitarget.h b/modules/lwjgl/core/src/main/c/libffi/arm/ffitarget.h
+index 0f505888f..ffaf1b898 100644
+--- a/modules/lwjgl/core/src/main/c/libffi/arm/ffitarget.h
++++ b/modules/lwjgl/core/src/main/c/libffi/arm/ffitarget.h
+@@ -43,7 +43,7 @@ typedef enum ffi_abi {
+   FFI_SYSV,
+   FFI_VFP,
+   FFI_LAST_ABI,
+-#if defined(__ARM_PCS_VFP) || defined(_M_ARM)
++#if defined(__ARM_PCS_VFP) || defined(_WIN32)
+   FFI_DEFAULT_ABI = FFI_VFP,
+ #else
+   FFI_DEFAULT_ABI = FFI_SYSV,
+@@ -71,7 +71,7 @@ typedef enum ffi_abi {
+   signed char vfp_args[16]			\
+ 
+ #define FFI_TARGET_SPECIFIC_VARIADIC
+-#ifndef _M_ARM
++#ifndef _WIN32
+ #define FFI_TARGET_HAS_COMPLEX_TYPE
+ #endif
+ 
+@@ -91,7 +91,7 @@ typedef enum ffi_abi {
+ #endif
+ 
+ #else
+-#ifdef _MSC_VER
++#ifdef _WIN32
+ #define FFI_TRAMPOLINE_SIZE 16
+ #define FFI_TRAMPOLINE_CLOSURE_FUNCTION 12
+ #else
+diff --git a/modules/lwjgl/core/src/main/c/libffi/ffi.h b/modules/lwjgl/core/src/main/c/libffi/ffi.h
+index 6c16184a7..117f4eaa0 100644
+--- a/modules/lwjgl/core/src/main/c/libffi/ffi.h
++++ b/modules/lwjgl/core/src/main/c/libffi/ffi.h
+@@ -147,7 +147,7 @@ typedef struct _ffi_type
+    when using the static version of the library.
+    Besides, as a workaround, they can define FFI_BUILDING if they
+    *know* they are going to link with the static library.  */
+-#if defined _MSC_VER
++#if defined _MSC_VER && !defined(FFI_STATIC_BUILD)
+ # if defined FFI_BUILDING_DLL /* Building libffi.DLL with msvcc.sh */
+ #  define FFI_API __declspec(dllexport)
+ # elif !defined FFI_BUILDING  /* Importing libffi.DLL */
+@@ -370,14 +370,6 @@ typedef struct {
+ FFI_API void *ffi_closure_alloc (size_t size, void **code);
+ FFI_API void ffi_closure_free (void *);
+ 
+-#if defined(PA_LINUX) || defined(PA_HPUX)
+-#define FFI_CLOSURE_PTR(X) ((void *)((unsigned int)(X) | 2))
+-#define FFI_RESTORE_PTR(X) ((void *)((unsigned int)(X) & ~3))
+-#else
+-#define FFI_CLOSURE_PTR(X) (X)
+-#define FFI_RESTORE_PTR(X) (X)
+-#endif
+-
+ FFI_API ffi_status
+ ffi_prep_closure (ffi_closure*,
+ 		  ffi_cif *,
+@@ -413,7 +405,7 @@ typedef struct {
+ 
+   /* If this is enabled, then a raw closure has the same layout
+      as a regular closure.  We use this to install an intermediate
+-     handler to do the transaltion, void** -> ffi_raw*.  */
++     handler to do the translation, void** -> ffi_raw*.  */
+ 
+   void     (*translate_args)(ffi_cif*,void*,void**,void*);
+   void      *this_closure;
+@@ -481,7 +473,7 @@ ffi_prep_java_raw_closure_loc (ffi_java_raw_closure*,
+ 
+ #endif /* FFI_CLOSURES */
+ 
+-#if FFI_GO_CLOSURES
++#ifdef FFI_GO_CLOSURES
+ 
+ typedef struct {
+   void      *tramp;
+@@ -524,8 +516,14 @@ FFI_API
+ ffi_status ffi_get_struct_offsets (ffi_abi abi, ffi_type *struct_type,
+ 				   size_t *offsets);
+ 
+-/* Useful for eliminating compiler warnings.  */
++/* Convert between closure and function pointers.  */
++#if defined(PA_LINUX) || defined(PA_HPUX)
++#define FFI_FN(f) ((void (*)(void))((unsigned int)(f) | 2))
++#define FFI_CL(f) ((void *)((unsigned int)(f) & ~3))
++#else
+ #define FFI_FN(f) ((void (*)(void))f)
++#define FFI_CL(f) ((void *)(f))
++#endif
+ 
+ /* ---- Definitions shared with assembly code ---------------------------- */
+ 
+diff --git a/modules/lwjgl/core/src/main/c/libffi/riscv64/ffitarget.h b/modules/lwjgl/core/src/main/c/libffi/riscv64/ffitarget.h
+new file mode 100644
+index 000000000..bb7acc16b
+--- /dev/null
++++ b/modules/lwjgl/core/src/main/c/libffi/riscv64/ffitarget.h
+@@ -0,0 +1,82 @@
++/* -----------------------------------------------------------------*-C-*-
++   ffitarget.h - 2014 Michael Knyszek
++
++   Target configuration macros for RISC-V.
++
++   Permission is hereby granted, free of charge, to any person obtaining
++   a copy of this software and associated documentation files (the
++   ``Software''), to deal in the Software without restriction, including
++   without limitation the rights to use, copy, modify, merge, publish,
++   distribute, sublicense, and/or sell copies of the Software, and to
++   permit persons to whom the Software is furnished to do so, subject to
++   the following conditions:
++
++   The above copyright notice and this permission notice shall be included
++   in all copies or substantial portions of the Software.
++
++   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
++   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++   DEALINGS IN THE SOFTWARE.
++
++   ----------------------------------------------------------------------- */
++
++#ifndef LIBFFI_TARGET_H
++#define LIBFFI_TARGET_H
++
++#ifndef LIBFFI_H
++#error "Please do not include ffitarget.h directly into your source.  Use ffi.h instead."
++#endif
++
++#ifndef __riscv
++#error "libffi was configured for a RISC-V target but this does not appear to be a RISC-V compiler."
++#endif
++
++#ifndef LIBFFI_ASM
++
++typedef unsigned long ffi_arg;
++typedef   signed long ffi_sarg;
++
++/* FFI_UNUSED_NN and riscv_unused are to maintain ABI compatibility with a
++   distributed Berkeley patch from 2014, and can be removed at SONAME bump */
++typedef enum ffi_abi {
++    FFI_FIRST_ABI = 0,
++    FFI_SYSV,
++    FFI_UNUSED_1,
++    FFI_UNUSED_2,
++    FFI_UNUSED_3,
++    FFI_LAST_ABI,
++
++    FFI_DEFAULT_ABI = FFI_SYSV,
++// LWJGL
++  FFI_WIN64 = -1,
++  FFI_GNUW64 = -1,
++  FFI_UNIX64 = -1,
++  FFI_EFI64 = -1,
++//FFI_SYSV = -1,
++  FFI_STDCALL = -1,
++  FFI_THISCALL = -1,
++  FFI_FASTCALL = -1,
++  FFI_MS_CDECL = -1,
++  FFI_PASCAL = -1,
++  FFI_REGISTER = -1,
++  FFI_VFP = -1
++} ffi_abi;
++
++#endif /* LIBFFI_ASM */
++
++/* ---- Definitions for closures ----------------------------------------- */
++
++#define FFI_CLOSURES 1
++#define FFI_GO_CLOSURES 1
++#define FFI_TRAMPOLINE_SIZE 24
++#define FFI_NATIVE_RAW_API 0
++#define FFI_EXTRA_CIF_FIELDS unsigned riscv_nfixedargs; unsigned riscv_unused;
++#define FFI_TARGET_SPECIFIC_VARIADIC
++
++#endif
++
+diff --git a/modules/lwjgl/core/src/main/c/libffi/x86/ffitarget.h b/modules/lwjgl/core/src/main/c/libffi/x86/ffitarget.h
+index 3cc1b29b4..2cbab9abf 100644
+--- a/modules/lwjgl/core/src/main/c/libffi/x86/ffitarget.h
++++ b/modules/lwjgl/core/src/main/c/libffi/x86/ffitarget.h
+@@ -41,6 +41,9 @@
+ 
+ #if defined (X86_64) && defined (__i386__)
+ #undef X86_64
++#warning ******************************************************
++#warning ********** X86 IS DEFINED ****************************
++#warning ******************************************************
+ #define X86
+ #endif
+ 
+diff --git a/modules/lwjgl/core/src/main/java/org/lwjgl/system/Platform.java b/modules/lwjgl/core/src/main/java/org/lwjgl/system/Platform.java
+index 1babac919..cca52a058 100644
+--- a/modules/lwjgl/core/src/main/java/org/lwjgl/system/Platform.java
++++ b/modules/lwjgl/core/src/main/java/org/lwjgl/system/Platform.java
+@@ -54,7 +54,8 @@ public enum Platform {
+         X64(true),
+         X86(false),
+         ARM64(true),
+-        ARM32(false);
++        ARM32(false),
++        RISCV64(true);
+ 
+         static final Architecture current;
+ 
+@@ -64,9 +65,16 @@ public enum Platform {
+             String  osArch  = System.getProperty("os.arch");
+             boolean is64Bit = osArch.contains("64") || osArch.startsWith("armv8");
+ 
+-            current = osArch.startsWith("arm") || osArch.startsWith("aarch64")
+-                ? (is64Bit ? Architecture.ARM64 : Architecture.ARM32)
+-                : (is64Bit ? Architecture.X64 : Architecture.X86);
++            if (osArch.startsWith("arm") || osArch.startsWith("aarch")) {
++                current = is64Bit ? Architecture.ARM64 : Architecture.ARM32;
++            } else if (osArch.startsWith("riscv")) {
++                if (!"riscv64".equals(osArch)) {
++                    throw new UnsupportedOperationException("Only RISC-V 64 is supported.");
++                }
++                current = Architecture.RISCV64;
++            } else {
++                current = is64Bit ? Architecture.X64 : Architecture.X86;
++            }
+         }
+ 
+         Architecture(boolean is64Bit) {
+diff --git a/modules/lwjgl/xxhash/src/generated/c/org_lwjgl_util_xxhash_XXHash.c b/modules/lwjgl/xxhash/src/generated/c/org_lwjgl_util_xxhash_XXHash.c
+index 98f2b3d78..b16210daf 100644
+--- a/modules/lwjgl/xxhash/src/generated/c/org_lwjgl_util_xxhash_XXHash.c
++++ b/modules/lwjgl/xxhash/src/generated/c/org_lwjgl_util_xxhash_XXHash.c
+@@ -6,12 +6,12 @@
+ #include "common_tools.h"
+ DISABLE_WARNINGS()
+ #include "lwjgl_malloc.h"
+-#if defined(LWJGL_arm64) || defined(LWJGL_arm32)
+-    #define XXH_INLINE_ALL
+-    #include "xxhash.h"
+-#else
++#if defined(LWJGL_x86) || defined(LWJGL_x64)
+     #include "xxh_x86dispatch.c"
+     #include "xxh_x86dispatch.h"
++#else
++    #define XXH_INLINE_ALL
++    #include "xxhash.h"
+ #endif
+ ENABLE_WARNINGS()
+ 
+diff --git a/modules/lwjgl/xxhash/src/templates/kotlin/xxhash/templates/xxhash.kt b/modules/lwjgl/xxhash/src/templates/kotlin/xxhash/templates/xxhash.kt
+index 470a389b9..5506b01bf 100644
+--- a/modules/lwjgl/xxhash/src/templates/kotlin/xxhash/templates/xxhash.kt
++++ b/modules/lwjgl/xxhash/src/templates/kotlin/xxhash/templates/xxhash.kt
+@@ -11,12 +11,12 @@ val xxhash = "XXHash".nativeClass(Module.XXHASH, prefix = "XXH", prefixMethod =
+     nativeDirective(
+         """DISABLE_WARNINGS()
+ #include "lwjgl_malloc.h"
+-#if defined(LWJGL_arm64) || defined(LWJGL_arm32)
+-    #define XXH_INLINE_ALL
+-    #include "xxhash.h"
+-#else
++#if defined(LWJGL_x86) || defined(LWJGL_x64)
+     #include "xxh_x86dispatch.c"
+     #include "xxh_x86dispatch.h"
++#else
++    #define XXH_INLINE_ALL
++    #include "xxhash.h"
+ #endif
+ ENABLE_WARNINGS()""")
+ 
+-- 
+2.48.1
+
