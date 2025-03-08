@@ -9,18 +9,32 @@
   lib,
   stdenv,
   ant,
+  assimp,
   buildPackages,
   dbus,
+  draco,
   fetchAntDeps,
   fetchFromGitHub,
+  freetype,
+  glfw,
   glib,
   gtk3,
+  harfbuzz,
+  hwloc,
+  jemalloc,
   kotlin,
-  libGLU,
+  ktx-tools,
+  libGL,
   libffi,
-  libglvnd,
+  libopus,
+  openal,
+  openxr-loader,
   pkg-config,
-  xorg,
+  sdl3,
+  shaderc,
+  spirv-cross,
+
+  withVendoredLibraries ? true,
 }:
 
 let
@@ -29,6 +43,39 @@ let
     "hash"
     "antHash"
   ];
+
+  natives = {
+    assimp = [
+      (lib.getLib assimp + "/lib/libassimp.so")
+      (lib.getLib draco + "/lib/libdraco.so")
+    ];
+
+    # bgfx = [ ];
+
+    freetype = [ (lib.getLib freetype + "/lib/libfreetype.so") ];
+
+    glfw = [ (lib.getLib glfw + "/lib/libglfw.so") ];
+
+    harfbuzz = [ (lib.getLib harfbuzz + "/lib/libharfbuzz.so") ];
+
+    hwloc = [ (lib.getLib hwloc + "/lib/libhwloc.so") ];
+
+    jemalloc = [ (lib.getLib jemalloc + "/lib/libjemalloc.so") ];
+
+    ktx = [ (lib.getLib ktx-tools + "/lib/libktx.so") ];
+
+    openal = [ (lib.getLib openal + "/lib/libopenal.so") ];
+
+    openxr = [ (lib.getLib openxr-loader + "/lib/libopenxr_loader.so") ];
+
+    opus = [ (lib.getLib libopus + "/lib/libopus.so") ];
+
+    sdl = [ (lib.getLib sdl3 + "/lib/libSDL3.so") ];
+
+    shaderc = [ (lib.getLib shaderc + "/lib/libshaderc.so") ];
+
+    spvc = [ (lib.getLib spirv-cross + "/lib/libspirv-cross.so") ];
+  };
 in
 
 stdenv.mkDerivation (
@@ -46,17 +93,12 @@ stdenv.mkDerivation (
     };
 
     patches =
-      lib.optionals (lib.versionOlder finalAttrs.version "3.3.4") (
-        [
-          ./patches/3.3.3/0001-build-use-pkg-config-for-linux-dependencies.patch
-          ./patches/3.3.3/0002-build-add-support-for-Linux-RISC-V-64.patch
-          ./patches/3.3.3/0003-build-rpmalloc-get_thread_id-support-on-riscv64.patch
-        ]
-        # Fix building on GCC 14
-        ++ lib.optional (
-          stdenv.cc.isGNU && lib.versionAtLeast stdenv.cc.version "14"
-        ) ./patches/3.3.3/0004-build-core-fix-warnings-errors-on-GCC-14.patch
-      )
+      lib.optionals (lib.versionOlder finalAttrs.version "3.3.4") [
+        ./patches/3.3.3/0001-build-use-pkg-config-for-linux-dependencies.patch
+        ./patches/3.3.3/0002-build-add-support-for-Linux-RISC-V-64.patch
+        ./patches/3.3.3/0003-build-rpmalloc-get_thread_id-support-on-riscv64.patch
+        ./patches/3.3.3/0004-build-core-fix-warnings-errors-on-GCC-14.patch
+      ]
 
       ++ lib.optionals (lib.versionAtLeast finalAttrs.version "3.3.4") [
         ./patches/3.3.4/0001-build-use-pkg-config-for-linux-dependencies.patch
@@ -94,20 +136,17 @@ stdenv.mkDerivation (
       dbus
       glib
       gtk3
-      libGLU
       libffi
-      xorg.libX11
-      xorg.libXt
     ];
-
-    # Fixes building against GCC 14
-    hardeningDisable = lib.optionals (
-      stdenv.hostPlatform.isRiscV64 && (stdenv.cc.isGNU && lib.versionAtLeast stdenv.cc.version "14")
-    ) [ "fortify" ];
 
     antFlags =
       [
-        "-Dgcc.libpath.opengl=${libglvnd}/lib"
+        "-Dgcc.libpath.opengl=${lib.getLib libGL}/lib"
+
+        # Don't bundle javadoc, else ant will try to grab a favicon from lwjgl.org
+        # It also slows down builds
+        # https://github.com/LWJGL/lwjgl3/blob/5bd237c53774aa52703b35cc2e692d7113db2bca/build.xml#L1372C36-L1372C55
+        "-Djavadoc.skip=true"
 
         "-Dlibffi.path=${lib.getLib libffi}/lib"
         "-Duse.libffi.so=true"
@@ -141,22 +180,59 @@ stdenv.mkDerivation (
       LWJGL_BUILD_TYPE = "release/${finalAttrs.version}";
     };
 
+    preConfigure = lib.optionalString (!withVendoredLibraries) (
+      ''
+        natives_dir="bin/libs/native/linux/$LWJGL_BUILD_ARCH/org/lwjgl"
+        mkdir -p $natives_dir
+      ''
+      + lib.concatLines (
+        lib.flatten (
+          lib.mapAttrsToList (
+            name: libraries:
+            [ "mkdir $natives_dir/${name}" ]
+            ++ map (library: "ln -s ${library} $natives_dir/${name}/") libraries
+          ) natives
+        )
+      )
+    );
+
     # Put the dependencies we already downloaded in the right place
     # NOTE: This directory *must* be writable
-    postConfigure = ''
-      mkdir bin
-      cp -dpr "$antDeps" ./bin/libs && chmod -R +w bin/libs
+    configurePhase = ''
+      runHook preConfigure
+
+      mkdir -p bin
+      cp -dpr "$antDeps" bin/libs && chmod -R +w bin/libs
+
+      runHook postConfigure
     '';
 
-    postBuild = ''
-      mkdir $out
+    buildPhase = ''
+      runHook preBuild
+
       concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray
-      ant compile-templates compile compile-native "''${flagsArray[@]}"
+      ant compile-templates compile-native release "''${flagsArray[@]}"
+
+      runHook postBuild
     '';
 
-    postInstall = ''
-      mkdir -p $out/lib
-      find . -type f -name '*.so' -exec install -Dm755 -t $out/lib {} \;
+    installPhase = ''
+      runHook preInstall
+
+      mkdir -p $out/{lib,share/lwjgl3}
+
+      find bin/RELEASE/ \
+        -type f \
+        -name '*.jar' \
+        -and -not -name '*-sources.jar' \
+        -exec install -Dm644 -t $out/share/lwjgl3 {} \;
+
+      find bin/ \
+        -type f \
+        -name '*.so' \
+        -exec install -Dm755 -t $out/lib {} \;
+
+      runHook postInstall
     '';
 
     meta = {
