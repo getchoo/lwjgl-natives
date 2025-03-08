@@ -98,7 +98,7 @@ in
               version: args:
 
               lib.nameValuePair "${target}-lwjgl-${version}" (
-                crossPkgsFor.${target}.callPackage ./pkgs/lwjgl ({ inherit fetchAntDeps version; } // args)
+                crossPkgsFor.${target}.callPackage (import ./pkgs/lwjgl args) { inherit fetchAntDeps; }
               )
             ) cfg.versions;
 
