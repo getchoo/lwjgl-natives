@@ -44,6 +44,8 @@ let
     "antHash"
   ];
 
+  isCross = stdenv.buildPlatform != stdenv.hostPlatform;
+
   natives = {
     assimp = [
       (lib.getLib assimp + "/lib/libassimp.so")
@@ -153,7 +155,11 @@ stdenv.mkDerivation (
 
         "-Dlocal.kotlin=${lib.getBin kotlin}"
       ]
-      ++ lib.optionals (stdenv.buildPlatform != stdenv.hostPlatform) [
+      ++ lib.optionals (!isCross) [
+        "-Dgcc.prefix="
+        "-Dpkg-config.prefix="
+      ]
+      ++ lib.optionals isCross [
         "-Dgcc.prefix=${stdenv.cc.targetPrefix}"
         "-Dpkg-config.prefix=${stdenv.cc.targetPrefix}"
       ];
