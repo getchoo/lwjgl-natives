@@ -33,6 +33,7 @@
   sdl3,
   shaderc,
   spirv-cross,
+  stripJavaArchivesHook,
 
   withVendoredLibraries ? true,
 }:
@@ -132,6 +133,7 @@ stdenv.mkDerivation (
       ant
       kotlin
       pkg-config
+      stripJavaArchivesHook
     ];
 
     buildInputs = [
