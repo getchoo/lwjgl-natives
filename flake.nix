@@ -1,4 +1,13 @@
 {
+  nixConfig = {
+    # TODO: Move to lwjgl-cache.prismlauncher.org
+    # Thank you Soopy
+    extra-substituters = [ "https://s3.soopy.moe/lwjgl-nix" ];
+    extra-trusted-public-keys = [
+      "lwjgl-cache.prismlauncher.org:ucMitaRYTISlJtFr5ETPsDm8UCBAQ4+PTj2rBVlK8IQ="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

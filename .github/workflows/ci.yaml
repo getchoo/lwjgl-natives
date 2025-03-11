@@ -64,6 +64,7 @@ jobs:
           BASE_ATTRIBUTE: "${{ matrix.target}}-lwjgl"
         run: |
           nix build \
+            --accept-flake-config \
             --fallback \
             --keep-going \
             --print-build-logs \
