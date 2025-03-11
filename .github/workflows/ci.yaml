@@ -38,6 +38,14 @@ jobs:
 
           - os: ubuntu-latest
             system: x86_64-linux
+            target: armv7l-unknown-linux-gnueabihf
+
+          - os: ubuntu-latest
+            system: x86_64-linux
+            target: powerpc64le-unknown-linux-gnu
+
+          - os: ubuntu-latest
+            system: x86_64-linux
             target: riscv64-unknown-linux-gnu
 
     runs-on: ${{ matrix.os }}

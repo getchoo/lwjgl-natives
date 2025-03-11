@@ -180,6 +180,8 @@ stdenv.mkDerivation (
           "arm32"
         else if stdenv.hostPlatform.isRiscV64 then
           "riscv64"
+        else if stdenv.hostPlatform.isPower64 then
+          "ppc64le"
         else
           throw "${stdenv.hostPlatform.cpu.name} is not a supported architecture";
       LWJGL_BUILD_OFFLINE = "yes";
