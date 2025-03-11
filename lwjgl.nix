@@ -4,6 +4,8 @@
     targets = [
       "x86_64-unknown-linux-gnu"
       "aarch64-unknown-linux-gnu"
+      "armv7l-unknown-linux-gnueabihf"
+      "powerpc64le-unknown-linux-gnu"
       "riscv64-unknown-linux-gnu"
     ];
 
