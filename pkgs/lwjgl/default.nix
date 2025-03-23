@@ -35,6 +35,7 @@
   spirv-cross,
   stripJavaArchivesHook,
 
+  generateJars ? false,
   withVendoredLibraries ? true,
 }:
 
@@ -166,6 +167,11 @@ stdenv.mkDerivation (
         "-Dpkg-config.prefix=${stdenv.cc.targetPrefix}"
       ];
 
+    antTargets = [
+      "compile-templates"
+      "compile-native"
+    ] ++ lib.optional generateJars "release";
+
     env = {
       JAVA_HOME = finalAttrs.antJdk.home;
       JAVA8_HOME = buildPackages.jdk8_headless.home;
@@ -220,30 +226,35 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
-      concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray
-      ant compile-templates compile-native release "''${flagsArray[@]}"
+      concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray antTargets
+      ant "''${flagsArray[@]}"
 
       runHook postBuild
     '';
 
-    installPhase = ''
-      runHook preInstall
+    installPhase =
+      ''
+        runHook preInstall
+      ''
+      + lib.optionalString generateJars ''
+        mkdir -p $out/share/lwjgl3
 
-      mkdir -p $out/{lib,share/lwjgl3}
+        find bin/RELEASE/ \
+          -type f \
+          -name '*.jar' \
+          -and -not -name '*-sources.jar' \
+          -exec install -Dm644 -t $out/share/lwjgl3 {} \;
+      ''
+      + ''
+        mkdir -p $out/lib
 
-      find bin/RELEASE/ \
-        -type f \
-        -name '*.jar' \
-        -and -not -name '*-sources.jar' \
-        -exec install -Dm644 -t $out/share/lwjgl3 {} \;
+        find bin/ \
+          -type f \
+          -name '*.so' \
+          -exec install -Dm755 -t $out/lib {} \;
 
-      find bin/ \
-        -type f \
-        -name '*.so' \
-        -exec install -Dm755 -t $out/lib {} \;
-
-      runHook postInstall
-    '';
+        runHook postInstall
+      '';
 
     meta = {
       description = "Lightweight Java Game Library";
