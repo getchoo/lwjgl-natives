@@ -1,7 +1,7 @@
-From 36e6e8bb83e94c92f29ef94c59fc3119b8ba425d Mon Sep 17 00:00:00 2001
+From ed2815bff5eadbe5128dc66cd689ff88e93bc19c Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Wed, 5 Mar 2025 16:34:50 -0500
-Subject: [PATCH 2/5] build: allow local kotlin
+Subject: [PATCH 2/6] build: allow local kotlin
 
 Adapted from https://cgit.freebsd.org/ports/commit/?id=680dc7bb031d0f708c2dd38f055ec8d63ee68b8a
 ---

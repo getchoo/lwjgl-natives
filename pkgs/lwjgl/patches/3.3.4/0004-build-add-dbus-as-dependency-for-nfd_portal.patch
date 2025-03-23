@@ -1,7 +1,7 @@
-From 258c919591e2aa16fded26c637c8130a27c9feab Mon Sep 17 00:00:00 2001
+From 22ba346a5804650d15077b0d25496e63394da8a2 Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Wed, 5 Mar 2025 17:10:20 -0500
-Subject: [PATCH 4/5] build: add dbus as dependency for nfd_portal
+Subject: [PATCH 4/6] build: add dbus as dependency for nfd_portal
 
 ---
  config/linux/build.xml | 10 ++++++++++
