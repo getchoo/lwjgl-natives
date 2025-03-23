@@ -5,7 +5,8 @@
       "x86_64-unknown-linux-gnu"
       "aarch64-unknown-linux-gnu"
       "armv7l-unknown-linux-gnueabihf"
-      "powerpc64le-unknown-linux-gnu"
+      # TODO: Backport support to 3.3.3
+      # "powerpc64le-unknown-linux-gnu"
       "riscv64-unknown-linux-gnu"
     ];
 
