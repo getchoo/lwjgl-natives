@@ -103,11 +103,13 @@ stdenv.mkDerivation (
         ./patches/3.3.3/0003-build-rpmalloc-get_thread_id-support-on-riscv64.patch
         ./patches/3.3.3/0004-build-core-fix-warnings-errors-on-GCC-14.patch
       ]
-
+      ++ lib.optionals (finalAttrs.version == "3.3.4") [
+        # stb_image_resize2.h:2588:12: error: missing loop condition in loop with 'GCC unroll' pragma before ';' token
+        ./patches/3.3.4/0006-feat-stb-update-stb_image_resize-to-2.10.patch
+      ]
       ++ lib.optionals (lib.versionAtLeast finalAttrs.version "3.3.4") [
         ./patches/3.3.4/0001-build-use-pkg-config-for-linux-dependencies.patch
       ]
-
       ++ [
         ./patches/3.3.4/0002-build-allow-local-kotlin.patch
         ./patches/3.3.4/0003-build-allow-linking-against-system-libffi.patch

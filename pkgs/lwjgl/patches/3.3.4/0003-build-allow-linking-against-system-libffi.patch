@@ -1,7 +1,7 @@
-From ff06851e13461c0b9e2f258caf6a2ead16bad700 Mon Sep 17 00:00:00 2001
+From bda441991252b42dc09504b87379108cfe24f1fb Mon Sep 17 00:00:00 2001
 From: Seth Flynn <getchoo@tuta.io>
 Date: Wed, 5 Mar 2025 16:43:57 -0500
-Subject: [PATCH 3/5] build: allow linking against system libffi
+Subject: [PATCH 3/6] build: allow linking against system libffi
 
 Adapted from https://cgit.freebsd.org/ports/commit/?id=680dc7bb031d0f708c2dd38f055ec8d63ee68b8a
 ---
