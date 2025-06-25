@@ -35,8 +35,7 @@
   spirv-cross,
   stripJavaArchivesHook,
 
-  generateJars ? false,
-  withVendoredLibraries ? true,
+  generateJars ? true,
 }:
 
 let
@@ -172,7 +171,7 @@ stdenv.mkDerivation (
     antTargets = [
       "compile-templates"
       "compile-native"
-    ] ++ lib.optional generateJars "release";
+    ];
 
     env = {
       JAVA_HOME = finalAttrs.antJdk.home;
@@ -198,22 +197,6 @@ stdenv.mkDerivation (
       LWJGL_BUILD_TYPE = "release/${finalAttrs.version}";
     };
 
-    preConfigure = lib.optionalString (!withVendoredLibraries) (
-      ''
-        natives_dir="bin/libs/native/linux/$LWJGL_BUILD_ARCH/org/lwjgl"
-        mkdir -p $natives_dir
-      ''
-      + lib.concatLines (
-        lib.flatten (
-          lib.mapAttrsToList (
-            name: libraries:
-            [ "mkdir $natives_dir/${name}" ]
-            ++ map (library: "ln -s ${library} $natives_dir/${name}/") libraries
-          ) natives
-        )
-      )
-    );
-
     # Put the dependencies we already downloaded in the right place
     # NOTE: This directory *must* be writable
     configurePhase = ''
@@ -228,11 +211,32 @@ stdenv.mkDerivation (
     buildPhase = ''
       runHook preBuild
 
-      concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray antTargets
-      ant "''${flagsArray[@]}"
+      concatTo flagsArray buildFlags buildFlagsArray antFlags antFlagsArray
+      concatTo targetsArray antTargets
+      ant "''${flagsArray[@]}" "''${targetsArray[@]}"
 
       runHook postBuild
     '';
+
+    postBuild = lib.optionalString generateJars (
+      # Place our libraries in a nice place for the build system to find
+      # NOTE: This can't be done before the `compile-native` target, else Ant will think it already built some things
+      ''
+        natives_dir="bin/libs/native/linux/$LWJGL_BUILD_ARCH/org/lwjgl"
+      ''
+      + lib.concatLines (
+        lib.flatten (
+          lib.mapAttrsToList (
+            name: libraries:
+            [ "mkdir -p $natives_dir/${name}" ]
+            ++ map (library: "ln -s ${library} $natives_dir/${name}/") libraries
+          ) natives
+        )
+      )
+      + ''
+        ant "''${flagsArray[@]}" release
+      ''
+    );
 
     installPhase =
       ''
